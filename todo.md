@@ -1,0 +1,3 @@
+- [] aks cluster creation in terraform
+- [] github actions to deploy container image from docker
+- [] gh action to run terraform

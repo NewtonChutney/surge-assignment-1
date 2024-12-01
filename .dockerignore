@@ -1,0 +1,6 @@
+.dockerignore
+.env
+.github/
+Dockerfile
+terraform/
+terraform-2/

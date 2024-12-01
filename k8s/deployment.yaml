@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nkm-surge-products-deployment
+  labels:
+    app: nkm-surge-products
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nkm-surge-products
+  template:
+    metadata:
+      labels:
+        app: nkm-surge-products
+    spec:
+      containers:
+      - name: nkm-surge-products
+        image: newtonchutney/nkm-surge-products:latest
+        ports:
+        - containerPort: 5000

@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: surge-flask-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+spec:
+  rules:
+  - host: surge-flask.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: surge-flask-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - surge-flask.yourdomain.com
+    secretName: surge-flask-tls
