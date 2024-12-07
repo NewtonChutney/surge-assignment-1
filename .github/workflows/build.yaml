@@ -6,6 +6,10 @@ on:
       - main
   # pull_request: # used in workflows for running tests
 
+# permissions:
+#   id-token: write
+#   contents: read
+
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -32,15 +36,23 @@ jobs:
   provision-infra:
     name: Provision Infrastructure with Terraform
     runs-on: ubuntu-latest
+    env:
+      # Job level env vars
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
-
+        
       - name: Initialize Terraform
         working-directory: terraform
         run: terraform init
@@ -51,20 +63,19 @@ jobs:
 
       - name: Apply Terraform
         working-directory: terraform
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         run: terraform apply -auto-approve
       
       - name: Capture env vars
-        id: terraform_output
+        # id: terraform_output
+        working-directory: terraform
         run: |
-          echo "DB_HOST=$(terraform output -raw azurerm_mysql_flexible_server)" >> $GITHUB_ENV
           echo "DB_USER=$(terraform output -raw admin_login)" >> $GITHUB_ENV
           echo "DB_PASSWORD=$(terraform output -raw admin_password)" >> $GITHUB_ENV
           echo "DB_SERVICE=$(terraform output -raw mysql_flexible_server_database_name)" >> $GITHUB_ENV
+          echo "DB_HOST=$(terraform output -raw mysql_flexible_server_hostname)" >> $GITHUB_ENV
+          echo "RG_NAME=$(terraform output -raw resource_group_name)" >> $GITHUB_ENV
+          echo "KUBE_CLUSTER_NAME=$(terraform output -raw kube_cluster_name)" >> $GITHUB_ENV
+          echo "KUBE_CLUSTER_RG=$(terraform output -raw kube_cluster_rg)" >> $GITHUB_ENV
 
   deploy-aks:
     name: Deploy Application to AKS
@@ -77,20 +88,20 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Log in to Azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.27.1'
 
       - name: Authenticate to AKS
-        uses: azure/aks-set-context@v3
+        uses: azure/aks-set-context@v4
         with:
-          cluster-name: flask-mysql-aks
-          resource-group: surge-devops
+          cluster-name: ${{ env.KUBE_CLUSTER_NAME }}
+          resource-group: ${{ env.KUBE_CLUSTER_RG }}
 
       - name: Deploy Kubernetes Manifests
         run: |
