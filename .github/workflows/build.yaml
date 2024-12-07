@@ -6,6 +6,10 @@ on:
       - main
   # pull_request: # used in workflows for running tests
 
+# permissions:
+#   id-token: write
+#   contents: read
+
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -40,10 +44,17 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
-
+        
       - name: Initialize Terraform
         working-directory: terraform
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
         run: terraform init
+
 
       - name: Validate Terraform
         working-directory: terraform
@@ -56,15 +67,26 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
         run: terraform apply -auto-approve
       
       - name: Capture env vars
-        id: terraform_output
+        # id: terraform_output
+        working-directory: terraform
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         run: |
-          echo "DB_HOST=$(terraform output -raw azurerm_mysql_flexible_server)" >> $GITHUB_ENV
-          echo "DB_USER=$(terraform output -raw admin_login)" >> $GITHUB_ENV
-          echo "DB_PASSWORD=$(terraform output -raw admin_password)" >> $GITHUB_ENV
-          echo "DB_SERVICE=$(terraform output -raw mysql_flexible_server_database_name)" >> $GITHUB_ENV
+          DB_HOST=$(terraform output azurerm_mysql_flexible_server | tr -d '"')
+          echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
+          DB_USER=$(terraform output admin_login | tr -d '"')
+          echo "DB_USER=$DB_USER" >> $GITHUB_ENV
+          DB_PASSWORD=$(terraform output admin_password | tr -d '"')
+          echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
+          DB_SERVICE=$(terraform output mysql_flexible_server_database_name | tr -d '"')
+          echo "DB_SERVICE=$DB_SERVICE" >> $GITHUB_ENV
 
   deploy-aks:
     name: Deploy Application to AKS
