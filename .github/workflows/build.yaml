@@ -1,10 +1,11 @@
 name: Build, Push Docker image and Deploy
 
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
   # pull_request: # used in workflows for running tests
+  workflow_dispatch:
 
 # permissions:
 #   id-token: write
@@ -43,6 +44,14 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
+    outputs:
+      DB_USER: ${{ steps.terraform_output.outputs.DB_USER }}        
+      DB_PASSWORD: ${{ steps.terraform_output.outputs.DB_PASSWORD }}        
+      DB_SERVICE: ${{ steps.terraform_output.outputs.DB_SERVICE }}        
+      DB_HOST: ${{ steps.terraform_output.outputs.DB_HOST }}        
+      RG_NAME: ${{ steps.terraform_output.outputs.RG_NAME }}        
+      KUBE_CLUSTER_NAME: ${{ steps.terraform_output.outputs.KUBE_CLUSTER_NAME }}        
+      KUBE_CLUSTER_RG: ${{ steps.terraform_output.outputs.KUBE_CLUSTER_RG }}
 
     steps:
       - name: Checkout Code
@@ -50,8 +59,6 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
         
       - name: Initialize Terraform
         working-directory: terraform
@@ -66,16 +73,16 @@ jobs:
         run: terraform apply -auto-approve
       
       - name: Capture env vars
-        # id: terraform_output
+        id: terraform_output
         working-directory: terraform
         run: |
-          echo "DB_USER=$(terraform output -raw admin_login)" >> $GITHUB_ENV
-          echo "DB_PASSWORD=$(terraform output -raw admin_password)" >> $GITHUB_ENV
-          echo "DB_SERVICE=$(terraform output -raw mysql_flexible_server_database_name)" >> $GITHUB_ENV
-          echo "DB_HOST=$(terraform output -raw mysql_flexible_server_hostname)" >> $GITHUB_ENV
-          echo "RG_NAME=$(terraform output -raw resource_group_name)" >> $GITHUB_ENV
-          echo "KUBE_CLUSTER_NAME=$(terraform output -raw kube_cluster_name)" >> $GITHUB_ENV
-          echo "KUBE_CLUSTER_RG=$(terraform output -raw kube_cluster_rg)" >> $GITHUB_ENV
+          echo "DB_USER=$(terraform output -raw admin_login)" >> $GITHUB_OUTPUT
+          echo "DB_PASSWORD=$(terraform output -raw admin_password)" >> $GITHUB_OUTPUT
+          echo "DB_SERVICE=$(terraform output -raw mysql_flexible_server_database_name)" >> $GITHUB_OUTPUT
+          echo "DB_HOST=$(terraform output -raw mysql_flexible_server_hostname)" >> $GITHUB_OUTPUT
+          echo "RG_NAME=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          echo "KUBE_CLUSTER_NAME=$(terraform output -raw kube_cluster_name)" >> $GITHUB_OUTPUT
+          echo "KUBE_CLUSTER_RG=$(terraform output -raw kube_cluster_rg)" >> $GITHUB_OUTPUT
 
   deploy-aks:
     name: Deploy Application to AKS
@@ -100,8 +107,8 @@ jobs:
       - name: Authenticate to AKS
         uses: azure/aks-set-context@v4
         with:
-          cluster-name: ${{ env.KUBE_CLUSTER_NAME }}
-          resource-group: ${{ env.KUBE_CLUSTER_RG }}
+          cluster-name: ${{ needs.provision-infra.outputs.KUBE_CLUSTER_NAME }}
+          resource-group: ${{ needs.provision-infra.outputs.KUBE_CLUSTER_RG }}
 
       - name: Deploy Kubernetes Manifests
         run: |
@@ -110,6 +117,11 @@ jobs:
           kubectl apply -f k8s/ingress.yaml
 
       - name: Inject password into container deployment
+        env: 
+          DB_HOST: ${{ needs.provision-infra.outputs.DB_HOST }} 
+          DB_USER: ${{ needs.provision-infra.outputs.DB_USER }} 
+          DB_PASSWORD: ${{ needs.provision-infra.outputs.DB_PASSWORD }} 
+          DB_SERVICE: ${{ needs.provision-infra.outputs.DB_SERVICE }} 
         run: |
           kubectl set env deployment/nkm-surge-products DB_HOST=$DB_HOST
           kubectl set env deployment/nkm-surge-products DB_USER=$DB_USER

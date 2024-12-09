@@ -28,10 +28,10 @@ output "kube_config" {
   sensitive = true
 }
 
-output "kube_cluster_name"{
+output "kube_cluster_name" {
   value = azurerm_kubernetes_cluster.aks.name
 }
 
-output "kube_cluster_rg"{
+output "kube_cluster_rg" {
   value = azurerm_kubernetes_cluster.aks.resource_group_name
 }

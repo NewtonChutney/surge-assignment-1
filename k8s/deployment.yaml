@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nkm-surge-products-deployment
+  name: nkm-surge-products
   labels:
     app: nkm-surge-products
 spec:
